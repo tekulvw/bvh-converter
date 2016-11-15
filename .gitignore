@@ -2,3 +2,4 @@ converter/
 __pycache__/
 *.py[cdo]
 *.csv
+*.log

@@ -1,6 +1,10 @@
 import numpy as np
 from joint import Frame_Joint
 
+import logging
+
+log = logging.getLogger("converter.skeleton")
+
 
 class Skeleton(object):
     def __init__(self):
@@ -21,8 +25,10 @@ class Skeleton(object):
 
     def _generate_nodes(self, parent, node):
             node.parent = parent
+            if not hasattr(node, 'position'):
+                node.position = (0, 0, 0)
             self._joints.append(node)
-            map(lambda kid: self.generate_nodes(node, kid), node.children)
+            map(lambda kid: self._generate_nodes(node, kid), node.children)
 
     def _set_hierarchy(self, root_node):
         """Called from `onHierarchy` in the BVH Reader class. Creates a
@@ -91,28 +97,30 @@ class Skeleton(object):
 
         def rotationXMat(angle):
             c, s = np.cos(angle), np.sin(angle)
-            return np.array([1, 0, 0,
-                             0, c, -s,
-                             0, s, c])
+            return np.array([[1, 0, 0],
+                             [0, c, -s],
+                             [0, s, c]])
 
         def rotationYMat(angle):
             c, s = np.cos(angle), np.sin(angle)
-            return np.array([c, 0, s,
-                             0, 1, 0,
-                             -s, 0, c])
+            return np.array([[c, 0, s],
+                             [0, 1, 0],
+                             [-s, 0, c]])
 
         def rotationZMat(angle):
             c, s = np.cos(angle), np.sin(angle)
-            return np.array([c, -s, 0,
-                             s, c, 0,
-                             0, 0, 1])
+            return np.array([[c, -s, 0],
+                             [s, c, 0],
+                             [0, 0, 1]])
 
         x_mat = rotationXMat(x)
         y_mat = rotationYMat(y)
         z_mat = rotationZMat(z)
 
-        ret = np.cross(z_mat, x_mat)
-        ret = np.cross(ret, y_mat)
+        ret = np.dot(z_mat, x_mat)
+        ret = np.dot(ret, y_mat)
+
+        log.debug("Rotation matrix: {}".format(ret))
 
         return ret
 
@@ -153,8 +161,9 @@ class Skeleton(object):
                 # Root node
                 parent_name = None
             frame_joint = Frame_Joint(name=joint.name, position=(0, 0, 0),
-                                      transformation_matrix=np.ndarray((4, 4)),
+                                      transformation_matrix=np.array((4, 4)),
                                       offset=joint.offset,
+                                      total_offset=joint.total_offset,
                                       channels=joint.channels,
                                       parent=parent_name,
                                       children=[])
@@ -194,23 +203,28 @@ class Skeleton(object):
                     else:
                         z_rot = chan_vals[i]
 
-                position = np.ndarray([x_pos, y_pos, z_pos])
-                rotation = np.ndarray([x_rot, y_rot, z_rot])
+                position = np.array([x_pos, y_pos, z_pos])
+                rotation = np.array([x_rot, y_rot, z_rot])
+                log.debug("rotation: {}".format(rotation))
 
                 frame_joint.position = position
 
                 curr_matrix = self._generate_current_mtx(
                     frame_joint.total_offset, rotation)
 
-                full_curr_mtx = np.cross(
-                    frame_joint.parent.transformation_matrix, curr_matrix)
+                try:
+                    full_curr_mtx = np.dot(
+                        frame_joint.parent.transformation_matrix, curr_matrix)
+                except AttributeError:
+                    # root
+                    full_curr_mtx = curr_matrix
 
                 frame_joint.transformation_matrix = full_curr_mtx
 
                 if len(frame_joint.channels) == 3:
                     # not root
-                    frame_joint.position = np.cross(
-                        full_curr_mtx, np.ndarray([0, 0, 0, 1]).transpose())
+                    frame_joint.position = np.dot(
+                        full_curr_mtx, np.array([0, 0, 0, 1]).transpose())
 
         self._frame_data.append(curr_frame_joints)
         # Jesus help me
@@ -220,7 +234,19 @@ class Skeleton(object):
 
         Positional Arguments
         n -- if not None, returns specified frame (with header)"""
+        frame_data = []
         if n is None:
-            return self._frame_data
+            for frame in self._frame_data:
+                single_frame = []
+                for frame_joint in frame:
+                    single_frame.append(frame_joint.position)
+                frame_data.append(single_frame)
         else:
-            return self._frame_data[n]
+            frame = self._frame_data[n]
+            single_frame = []
+            for frame_joint in frame:
+                single_frame.append(frame_joint.position)
+            frame_data.append(frame)
+
+        header = [j.name for j in self._joints]
+        return header, frame_data
