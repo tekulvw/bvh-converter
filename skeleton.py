@@ -117,10 +117,10 @@ class Skeleton(object):
         y_mat = rotationYMat(y)
         z_mat = rotationZMat(z)
 
-        ret = np.dot(z_mat, x_mat)
-        ret = np.dot(ret, y_mat)
+        ret = np.matmul(z_mat, x_mat)
+        ret = np.matmul(ret, y_mat)
 
-        log.debug("Rotation matrix: {}".format(ret))
+        log.debug("Rotation matrix:\n{}".format(ret))
 
         return ret
 
@@ -135,7 +135,7 @@ class Skeleton(object):
             coordinate triple"""
         ret = np.zeros((4, 4))
         ret[:3, :3] = self._generate_rotation_mtx(rotation)
-        ret[3, :3] = total_offset
+        ret[:3, 3] = total_offset
         ret[3, 3] = 1
 
         return ret
@@ -213,17 +213,21 @@ class Skeleton(object):
                     frame_joint.total_offset, rotation)
 
                 try:
-                    full_curr_mtx = np.dot(
+                    full_curr_mtx = np.matmul(
                         frame_joint.parent.transformation_matrix, curr_matrix)
                 except AttributeError:
                     # root
                     full_curr_mtx = curr_matrix
+                    log.debug("On root, full_curr_mtx:\n{}".format(
+                        full_curr_mtx))
+                else:
+                    log.debug("full_curr_mtx:\n{}".format(full_curr_mtx))
 
                 frame_joint.transformation_matrix = full_curr_mtx
 
                 if len(frame_joint.channels) == 3:
                     # not root
-                    frame_joint.position = np.dot(
+                    frame_joint.position = np.matmul(
                         full_curr_mtx, np.array([0, 0, 0, 1]).transpose())
 
         self._frame_data.append(curr_frame_joints)

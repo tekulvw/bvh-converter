@@ -24,12 +24,15 @@ class Converter(BVHReader, object):
     def __init__(self, skeleton, *args, **kwargs):
         super(Converter, self).__init__(*args, **kwargs)
         self.skeleton = skeleton
+        self.count = 0
 
     def onHierarchy(self, root):
         self.skeleton._set_hierarchy(root)
 
     def onFrame(self, values):
-        self.skeleton._add_frame(values)
+        if self.count < 5:
+            self.skeleton._add_frame(values)
+            self.count += 1
 
 
 def setup_logger(level):
@@ -53,7 +56,7 @@ def setup_logger(level):
 
 
 if __name__ == "__main__":
-    setup_logger(logging.INFO)
+    setup_logger(logging.DEBUG)
     fname = sys.argv[1]
     print("Input filename: {}".format(fname))
     s = Skeleton()
