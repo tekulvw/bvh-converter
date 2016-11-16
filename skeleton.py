@@ -1,6 +1,7 @@
 import numpy as np
 from joint import Frame_Joint
 
+from math import radians
 import logging
 
 log = logging.getLogger("converter.skeleton")
@@ -117,8 +118,8 @@ class Skeleton(object):
         y_mat = rotationYMat(y)
         z_mat = rotationZMat(z)
 
-        ret = np.matmul(z_mat, x_mat)
-        ret = np.matmul(ret, y_mat)
+        ret = np.dot(z_mat, x_mat)
+        ret = np.dot(ret, y_mat)
 
         log.debug("Rotation matrix:\n{}".format(ret))
 
@@ -179,7 +180,9 @@ class Skeleton(object):
 
         # ^ assigns parents and children to curr_frame_joints
 
-        # TODO: Position math
+        # Position math
+
+        root_position = (0, 0, 0)
 
         for frame_joint in curr_frame_joints:
             chan_vals = values[:len(frame_joint.channels)]
@@ -197,11 +200,11 @@ class Skeleton(object):
                         z_pos = chan_vals[i]
                 else:
                     if 'x' in chan.lower():
-                        x_rot = chan_vals[i]
+                        x_rot = radians(chan_vals[i])
                     elif 'y' in chan.lower():
-                        y_rot = chan_vals[i]
+                        y_rot = radians(chan_vals[i])
                     else:
-                        z_rot = chan_vals[i]
+                        z_rot = radians(chan_vals[i])
 
                 position = np.array([x_pos, y_pos, z_pos])
                 rotation = np.array([x_rot, y_rot, z_rot])
@@ -209,11 +212,15 @@ class Skeleton(object):
 
                 frame_joint.position = position
 
+                local_transformation = np.add(
+                    np.array(root_position),
+                    np.array(frame_joint.total_offset))
+
                 curr_matrix = self._generate_current_mtx(
-                    frame_joint.total_offset, rotation)
+                    local_transformation, rotation)
 
                 try:
-                    full_curr_mtx = np.matmul(
+                    full_curr_mtx = np.dot(
                         frame_joint.parent.transformation_matrix, curr_matrix)
                 except AttributeError:
                     # root
@@ -227,8 +234,13 @@ class Skeleton(object):
 
                 if len(frame_joint.channels) == 3:
                     # not root
-                    frame_joint.position = np.matmul(
-                        full_curr_mtx, np.array([0, 0, 0, 1]).transpose())
+                    local_origin = np.ones((1, 4))
+                    local_origin[0, :3] = local_transformation
+                    frame_joint.position = np.dot(
+                        full_curr_mtx, local_origin.transpose())[:3]
+                else:
+                    # root
+                    root_position = position
 
         self._frame_data.append(curr_frame_joints)
         # Jesus help me
@@ -243,14 +255,15 @@ class Skeleton(object):
             for frame in self._frame_data:
                 single_frame = []
                 for frame_joint in frame:
-                    single_frame.append(frame_joint.position)
+                    single_frame.extend(frame_joint.position)
                 frame_data.append(single_frame)
         else:
             frame = self._frame_data[n]
             single_frame = []
             for frame_joint in frame:
-                single_frame.append(frame_joint.position)
+                single_frame.extend(frame_joint.position)
             frame_data.append(frame)
 
-        header = [j.name for j in self._joints]
+        header = ["{}.{}".format(j.name, thing) for j in self._joints
+                  for thing in ("X", "Y", "Z")]
         return header, frame_data

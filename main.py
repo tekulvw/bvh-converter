@@ -4,6 +4,7 @@ import csv
 
 from cgkit.bvh import BVHReader
 import cgkit.bvh
+from sympy import Point3D
 from joint import Joint
 from skeleton import Skeleton
 import logging
@@ -68,4 +69,6 @@ if __name__ == "__main__":
         writer.writerow(header)
         for frame in frames:
             writer.writerow(frame)
+    for j in s._joints:
+        log.debug("{}: {}".format(j.name, j.total_offset))
     # c.dump_frames()
