@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from __future__ import print_function
 from math import radians, cos, sin
 from cgkit.bvh import BVHReader
 from numpy import array, dot
@@ -75,14 +76,14 @@ class joint:
         # joint's endpoint.  A list of vec4's
 
     def info(self):
-        print "Joint name:", self.name
-        print " %s is connected to " % self.name,
+        print("Joint name:", self.name)
+        print(" %s is connected to " % self.name,)
         if(len(self.children) == 0):
-            print "nothing"
+            print("nothing")
         else:
             for child in self.children:
-                print "%s " % child.name,
-            print
+                print("%s " % child.name,)
+            print()
         for child in self.children:
             child.info()
 
@@ -196,25 +197,24 @@ class skeleton:
 
         joints = joint_dfs(self.hips)
 
-        print(len(joints))
-
         frame_data = []
         if n is None:
             for i in range(len(self.keyframes)):
-                single_frame = []
                 t = i * self.dt
+                single_frame = [t, ]
                 for j in joints:
                     single_frame.extend(j.worldpos[t][:3])
                 frame_data.append(single_frame)
         else:
-            single_frame = []
             t = n * self.dt
+            single_frame = [t, ]
             for j in joints:
                 single_frame.extend(j.worldpos[t][:3])
             frame_data.append(single_frame)
 
         header = ["{}.{}".format(j.name, thing) for j in joints
                   for thing in ("X", "Y", "Z")]
+        header = ["Time", ] + header
         return header, frame_data
 
 
@@ -227,18 +227,18 @@ class skeleton:
 class readbvh(BVHReader):
 
     def onHierarchy(self, root):
-        #    print "readbvh: onHierarchy invoked"
+        #    print("readbvh: onHierarchy invoked"
         self.root = root  # Save root for later use
         self.keyframes = []  # Used later in onFrame
 
     def onMotion(self, frames, dt):
-        # print "readbvh: onMotion invoked.  frames = %s, dt = %s" %
+        # print("readbvh: onMotion invoked.  frames = %s, dt = %s" %
         # (frames,dt)
         self.frames = frames
         self.dt = dt
 
     def onFrame(self, values):
-        #   print "readbvh: onFrame invoked, values =", values
+        #   print("readbvh: onFrame invoked, values =", values
         # Hopefully this gives us a list of lists
         self.keyframes.append(values)
 
@@ -269,7 +269,7 @@ def process_bvhnode(node, parentname='hips'):
     name = node.name
     if (name == "End Site") or (name == "end site"):
         name = parentname + "End"
-    # print "process_bvhnode: name is ", name
+    # print("process_bvhnode: name is ", name
     b1 = joint(name)
     b1.channels = node.channels
     b1.strans[0] = node.offset[0]
@@ -318,8 +318,8 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
                      [0., 0., 1., 0.], [0., 0., 0., 1.]])
 
     if DEBUG:
-        print " process_bvhkeyframe: doing joint %s, t=%d" % (joint.name, t)
-        print " keyframe has %d elements in it." % (len(keyframe))
+        print(" process_bvhkeyframe: doing joint %s, t=%d" % (joint.name, t))
+        print(" keyframe has %d elements in it." % (len(keyframe)))
 
     # Suck in as many values off the front of "keyframe" as we need
     # to populate this joint's channels.  The meanings of the keyvals
@@ -390,13 +390,14 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         dtransmat[2, 3] = zpos
 
         if DEBUG:
-            print "  Joint %s: xpos ypos zpos is %s %s %s" % (joint.name,
-                                                              xpos, ypos, zpos)
+            print(
+                "  Joint %s: xpos ypos zpos is %s %s %s" % (joint.name,
+                                                            xpos, ypos, zpos))
         # End of IF dotrans
 
         if DEBUG:
-            print "  Joint %s: xrot yrot zrot is %s %s %s" %     \
-                (joint.name, xrot, yrot, zrot)
+            print("  Joint %s: xrot yrot zrot is %s %s %s" %
+                  (joint.name, xrot, yrot, zrot))
 
     # At this point we should have computed:
     #  stransmat  (computed previously in process_bvhnode subroutine)
@@ -445,20 +446,20 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
     joint.worldpos[t] = worldpos  # Dictionary-based approach
 
     if DEBUG:
-        print "  Joint %s: here are some matrices" % (joint.name)
-        print "   stransmat:"
-        print joint.stransmat
+        print("  Joint %s: here are some matrices" % (joint.name))
+        print("   stransmat:")
+        print(joint.stransmat)
         if not (joint.hasparent):  # if hips
-            print "   dtransmat:"
-            print dtransmat
-        print "   drotmat:"
-        print drotmat
-        print "   localtoworld:"
-        print localtoworld
-        print "   trtr:"
-        print trtr
-        print "  worldpos:", worldpos
-        print
+            print("   dtransmat:")
+            print(dtransmat)
+        print("   drotmat:")
+        print(drotmat)
+        print("   localtoworld:")
+        print(localtoworld)
+        print("   trtr:")
+        print(trtr)
+        print("  worldpos:", worldpos)
+        print()
 
     newkeyframe = keyframe[counter:]  # Slices from counter+1 to end
     for child in joint.children:
@@ -467,7 +468,7 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         # process
         newkeyframe = process_bvhkeyframe(newkeyframe, child, t, DEBUG=DEBUG)
         if(newkeyframe == 0):  # If retval = 0
-            print "Passing up fatal error in process_bvhkeyframe"
+            print("Passing up fatal error in process_bvhkeyframe")
             return(0)
     return newkeyframe
 
@@ -491,19 +492,19 @@ def process_bvhfile(filename, DEBUG=0):
     #
     # mybvh.read() returns None on success and throws an exception on failure.
 
-    print "Reading BVH file...",
+    print("Reading BVH file...",)
     mybvh = readbvh(filename)  # Doesn't actually read the file, just creates
     # a readbvh object and sets up the file for
     # reading in the next line.
     mybvh.read()  # Reads and parses the file.
 
     hips = process_bvhnode(mybvh.root)  # Create joint hierarchy
-    print "done"
+    print("done")
 
-    print "Building skeleton...",
+    print("Building skeleton...",)
     myskeleton = skeleton(hips, keyframes=mybvh.keyframes,
                           frames=mybvh.frames, dt=mybvh.dt)
-    print "done"
+    print("done")
     if DEBUG:
-        print "skeleton is: ", myskeleton
+        print("skeleton is: ", myskeleton)
     return(myskeleton)
