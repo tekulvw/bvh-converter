@@ -42,7 +42,7 @@ if __name__ == "__main__":
     print("Input filename: {}".format(fname))
 
     other_s = process_bvhfile(fname)
-    for i in range(len(other_s.keyframes)):
+    for i in range(other_s.frames):
         new_frame = process_bvhkeyframe(other_s.keyframes[i], other_s.hips,
                                         other_s.dt * i)
 
