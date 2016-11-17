@@ -3,9 +3,6 @@ import sys
 import csv
 
 from cgkit_skeleton import process_bvhfile, process_bvhkeyframe
-import logging
-
-log = logging.getLogger("converter")
 
 """
 Based on: http://www.dcs.shef.ac.uk/intranet/research/public/resmes/CS0111.pdf
@@ -16,28 +13,7 @@ Notes:
 """
 
 
-def setup_logger(level):
-    log.setLevel(level)
-
-    fmt = logging.Formatter(
-        '%(asctime)s %(levelname)s %(module)s %(funcName)s %(lineno)d: '
-        '%(message)s',
-        datefmt="[%d/%m/%Y %H:%M]")
-
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(fmt)
-    stdout_handler.setLevel(level)
-
-    fhandler = logging.FileHandler(
-        filename='output.log', encoding='utf-8', mode='a')
-    fhandler.setFormatter(fmt)
-
-    log.addHandler(fhandler)
-    log.addHandler(stdout_handler)
-
-
 if __name__ == "__main__":
-    setup_logger(logging.DEBUG)
     fname = sys.argv[1]
     print("Input filename: {}".format(fname))
 
