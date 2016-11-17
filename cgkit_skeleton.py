@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+from math import radians, cos, sin
+from cgkit.bvh import BVHReader
+from numpy import array, dot
+
 """
 A word on this:
 
@@ -32,17 +36,6 @@ __authors__ = ["Bruce Hahne (hahne at prismnet dot com)",
 # By contrast, if you're talking about a non-keyframe data structure
 # derived from the BVH keyframes, such as matrices or edges, it's a
 # dictionary and the values run from 1 to N.
-
-
-from math import radians, cos, sin
-from cgkit.bvh import BVHReader
-# from geo import worldvert, screenvert, worldedge, screenedge
-from numpy import array, dot
-
-# cgkit# XAXIS = vec3(1,0,0)
-# cgkit# YAXIS = vec3(0,1,0)
-# cgkit# ZAXIS = vec3(0,0,1)
-# cgkit# ORIGIN = vec4(0,0,0,1)
 
 
 ZEROMAT = array([[0., 0., 0., 0.], [0., 0., 0., 0.],
@@ -115,28 +108,6 @@ class joint:
         childjoint.hasparent = 1
         childjoint.parent = self
 
-    # Called by skeleton.create_edges()
-    """def create_edges_recurse(self, edgelist, t, DEBUG=0):
-        if DEBUG:
-            print "create_edge_recurse starting for joint ", self.name
-        if self.hasparent:
-            temp1 = self.parent.worldpos[t]  # Faster than triple lookup below?
-            temp2 = self.worldpos[t]
-            v1 = worldvert(temp1[0], temp1[1], temp1[2], DEBUG=DEBUG,
-                           description=self.parent.name)
-            v2 = worldvert(temp2[0], temp2[1], temp2[2], DEBUG=DEBUG,
-                           description=self.name)
-
-            descr = self.parent.name + " to " + self.name
-            myedge = worldedge(v1, v2, description=descr)
-            edgelist.append(myedge)
-
-        for child in self.children:
-            if DEBUG:
-                print " Recursing for child ", child.name
-            child.create_edges_recurse(edgelist, t, DEBUG)
-    """
-
 # End class joint
 
 
@@ -206,104 +177,6 @@ class skeleton:
         str1 = "frames = " + str(self.frames) + ", dt = " + str(self.dt) + "\n"
         str1 = str1 + self.hips.__repr__()
         return str1
-
-
-####################
-# MAKE_SKELSCREENEDGES: creates and returns an array of screenedge
-# that has exactly as many elements as the joint count of skeleton.
-#
-    """
-    def make_skelscreenedges(self, arrow='none', circle=0, DEBUG=0):
-        if DEBUG:
-            print "make_sse starting"
-
-# I need the number of joints in self.  We don't store this value
-# in the class, but we can get it by looking at the length of any
-# edge array self.edges[t] for any t.  So we make sure that self.edges[1]
-# is set up, then we take its length.
-        if not (1 in self.edges):
-            self.create_edges_onet(1)
-
-        jointcount = len(self.edges[1])
-        if DEBUG:
-            print "make_skelscreenedges: jointcount=", jointcount
-        skelscreenedges = []
-
-        for x in range(jointcount):
-            sv1 = screenvert(0., 0., 0., description='make_sse_sv1')
-            sv2 = screenvert(0., 0., 0., description='make_sse_sv2')
-            se1 = screenedge(sv1, sv2, arrow=arrow, circle=circle, DEBUG=DEBUG,
-                             description='created_by_make_skelscreenedges')
-            skelscreenedges.append(se1)
-        return skelscreenedges
-    """
-
-
-#########################################
-# CREATE_EDGES_ONET class function
-
-    def create_edges_onet(self, t, DEBUG=0):
-        #    print "create_edges_onet starting for t=",t
-        if DEBUG:
-            print "create_edges_onet starting for t=", t
-
-# Before we can compute edge positions, we need to have called
-# process_bvhkeyframe for time t, which computes trtr and worldpos
-# for the joint hierarchy at time t.  Since we no longer precompute
-# this information when we read the BVH file, here's where we do it.
-# This is on-demand computation of trtr and worldpos.
-        if not (t in self.hips.worldpos):
-            if DEBUG:
-                print("create_edges_onet: about to call process_bvhkeyframe"
-                      " for t=", t)
-            process_bvhkeyframe(
-                self.keyframes[t - 1], self.hips, t, DEBUG=DEBUG)
-
-        if not (t in self.edges):
-            if DEBUG:
-                print "create_edges_onet: creating edges for t=", t
-            edgelist = []
-            self.hips.create_edges_recurse(edgelist, t, DEBUG=DEBUG)
-            self.edges[t] = edgelist  # dictionary entry
-
-        if DEBUG:
-            print "create_edges edge list at timestep %d:" % (t)
-            print edgelist
-
-
-#################################
-# POPULATE_SKELSCREENEDGES
-# Given a time t and a precreated array of screenedge, copies values
-# from skeleton.edges[] into the screenedge array.
-#
-# Use this routine whenever slidert (time position on slider) changes.
-# This routine is how you get your edge data somewhere that redraw()
-# will make use of it.
-
-    def populate_skelscreenedges(self, sse, t, DEBUG=0):
-        if DEBUG:
-            print "populate_sse starting for t=", t
-# First we have to make sure that self.edges exists for slidert=t
-        if not (t in self.edges):
-            if DEBUG:
-                print("populate_skelscreenedges: about to call"
-                      " create_edges_onet(%d)" % (t))
-            self.create_edges_onet(t, DEBUG=DEBUG)
-        counter = 0
-        for wldedge in self.edges[t]:
-            # Yes, we copy in the xyz values manually.  This keeps us sane.
-            sse[counter].sv1.tr[0] = wldedge.wv1.tr[0]
-            sse[counter].sv1.tr[1] = wldedge.wv1.tr[1]
-            sse[counter].sv1.tr[2] = wldedge.wv1.tr[2]
-            sse[counter].sv2.tr[0] = wldedge.wv2.tr[0]
-            sse[counter].sv2.tr[1] = wldedge.wv2.tr[1]
-            sse[counter].sv2.tr[2] = wldedge.wv2.tr[2]
-            # Also copy in the name
-            sse[counter].descr = wldedge.descr
-            counter += 1
-        if DEBUG:
-            print("populate_skelscreenedges: copied {} edges from skeleton"
-                  " to sse".format(counter))
 
     def get_frames(self, n=None):
         """Returns a list of frames, first item in list will be a header
@@ -399,16 +272,13 @@ def process_bvhnode(node, parentname='hips'):
     # print "process_bvhnode: name is ", name
     b1 = joint(name)
     b1.channels = node.channels
-# cgkit#  b1.strans.x = node.offset[0]
-# cgkit#  b1.strans.y = node.offset[1]
-# cgkit#  b1.strans.z = node.offset[2]
     b1.strans[0] = node.offset[0]
     b1.strans[1] = node.offset[1]
     b1.strans[2] = node.offset[2]
 
-# Compute static translation matrix from vec3 b1.strans
-# cgkit#  b1.stransmat = b1.stransmat.translation(b1.strans)
-#   b1.stransmat = deepcopy(IDENTITY)
+    # Compute static translation matrix from vec3 b1.strans
+    # cgkit#  b1.stransmat = b1.stransmat.translation(b1.strans)
+    #   b1.stransmat = deepcopy(IDENTITY)
     b1.stransmat = array([[1., 0., 0., 0.], [0., 1., 0., 0.], [
                          0., 0., 1., 0.], [0., 0., 0., 1.]])
 
@@ -442,8 +312,8 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
     counter = 0
     dotrans = 0
 
-# We have to build up drotmat one rotation value at a time so that
-# we get the matrix multiplication order correct.
+    # We have to build up drotmat one rotation value at a time so that
+    # we get the matrix multiplication order correct.
     drotmat = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
                      [0., 0., 1., 0.], [0., 0., 0., 1.]])
 
@@ -468,12 +338,9 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             zpos = keyval
         elif(channel == "Xrotation"):
             xrot = keyval
-# cgkit#      drotmat2 = drotmat2.rotation(radians(xrot), XAXIS)
-# cgkit#      drotmat = drotmat * drotmat2  # Build up the full rotation matrix
             theta = radians(xrot)
             mycos = cos(theta)
             mysin = sin(theta)
-# drotmat2 = deepcopy(IDENTITY)
             drotmat2 = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
                               [0., 0., 1., 0.], [0., 0., 0., 1.]])
             drotmat2[1, 1] = mycos
@@ -484,12 +351,9 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
 
         elif(channel == "Yrotation"):
             yrot = keyval
-# cgkit#      drotmat2 = drotmat2.rotation(radians(yrot), YAXIS)
-# cgkit#      drotmat = drotmat * drotmat2
             theta = radians(yrot)
             mycos = cos(theta)
             mysin = sin(theta)
-            # drotmat2 = deepcopy(IDENTITY)
             drotmat2 = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
                               [0., 0., 1., 0.], [0., 0., 0., 1.]])
             drotmat2[0, 0] = mycos
@@ -503,7 +367,6 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             theta = radians(zrot)
             mycos = cos(theta)
             mysin = sin(theta)
-            # drotmat2 = deepcopy(IDENTITY)
             drotmat2 = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
                               [0., 0., 1., 0.], [0., 0., 0., 1.]])
             drotmat2[0, 0] = mycos
@@ -515,7 +378,6 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             print("Fatal error in process_bvhkeyframe: illegal channel"
                   " name ", channel)
             return(0)
-# sys.exit()
         counter += 1
     # End "for channel..."
 
@@ -564,8 +426,8 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         # parent_trtr = joint.parent.trtr[-1]  # Last entry from parent
         parent_trtr = joint.parent.trtr[t]  # Dictionary-based rewrite
 
-# 8/31/2008: dtransmat now excluded from non-hips computation since
-# it's just identity anyway.
+        # 8/31/2008: dtransmat now excluded from non-hips computation since
+        # it's just identity anyway.
         # localtoworld = dot(parent_trtr,dot(joint.stransmat,dtransmat))
         localtoworld = dot(parent_trtr, joint.stransmat)
 
@@ -573,20 +435,13 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         # cgkit#    localtoworld = joint.stransmat * dtransmat
         localtoworld = dot(joint.stransmat, dtransmat)
 
-# cgkit#  trtr = localtoworld * drotmat
     trtr = dot(localtoworld, drotmat)
 
-# joint.trtr.append(trtr)  # Whew
     joint.trtr[t] = trtr  # New dictionary-based approach
 
-
-# cgkit#  worldpos = localtoworld * ORIGIN  # worldpos should be a vec4
-#
-# numpy conversion: eliminate the matrix multiplication entirely,
-# since all we're doing is extracting the last column of worldpos.
+    # worldpos = localtoworld * ORIGIN  # worldpos should be a vec4
     worldpos = array([localtoworld[0, 3], localtoworld[1, 3],
                       localtoworld[2, 3], localtoworld[3, 3]])
-# joint.worldpos.append(worldpos)
     joint.worldpos[t] = worldpos  # Dictionary-based approach
 
     if DEBUG:

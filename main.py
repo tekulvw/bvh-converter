@@ -2,7 +2,6 @@ from __future__ import print_function, division
 import sys
 import csv
 
-from cgkit.bvh import BVHReader
 from cgkit_skeleton import process_bvhfile, process_bvhkeyframe
 import logging
 
