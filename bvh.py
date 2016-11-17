@@ -40,6 +40,10 @@
 # Node
 
 from __future__ import print_function
+import sys
+
+if sys.version_info >= (3,):
+    file = open
 
 
 class Node:
@@ -146,7 +150,7 @@ class BVHReader:
                     ("Syntax error in line %d: %d float values expected,"
                      " got %d instead") % (
                          self.linenr, self._numchannels, len(a)))
-            values = map(lambda x: float(x), a)
+            values = list(map(lambda x: float(x), a))
             self.onFrame(values)
 
     # readHierarchy
