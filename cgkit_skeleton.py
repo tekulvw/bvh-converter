@@ -1,5 +1,18 @@
 #!/usr/bin/python
 
+"""
+A word on this:
+
+ - The vast majority of this code (specifically the algorithm) was written for
+    BVHPlayer found on https://sites.google.com/a/cgspeed.com/cgspeed/bvhplay
+
+ - This code is not licensed by the owner of the cgspeed/bvhplay project but
+    I would still like to preserve the chain of credit.
+"""
+
+__authors__ = ["Bruce Hahne (hahne at prismnet dot com)",
+               "Will Tekulve (tekulve dot will at gmail dot com"]
+
 # skeleton.py: various BVH and skeleton-related classes.
 # Adapted from earlier work "bvhtest.py"
 
@@ -314,18 +327,16 @@ class skeleton:
 
         frame_data = []
         if n is None:
-            single_frame = []
-            for i in range(1, self.frames):
+            for i in range(len(self.keyframes)):
+                single_frame = []
                 t = i * self.dt
                 for j in joints:
-                    print(j.worldpos)
-                    single_frame.append(j.worldpos[t][:3])
-            frame_data.append(single_frame)
+                    single_frame.extend(j.worldpos[t][:3])
+                frame_data.append(single_frame)
         else:
             single_frame = []
             t = n * self.dt
             for j in joints:
-                print(j.worldpos)
                 single_frame.extend(j.worldpos[t][:3])
             frame_data.append(single_frame)
 
