@@ -4,9 +4,9 @@ import csv
 
 from cgkit.bvh import BVHReader
 import cgkit.bvh
-from sympy import Point3D
 from joint import Joint
 from skeleton import Skeleton
+from cgkit_skeleton import process_bvhfile, process_bvhkeyframe
 import logging
 
 cgkit.bvh.Node = Joint
@@ -60,15 +60,22 @@ if __name__ == "__main__":
     setup_logger(logging.DEBUG)
     fname = sys.argv[1]
     print("Input filename: {}".format(fname))
-    s = Skeleton()
-    c = Converter(s, fname)
-    c.read()
+    # s = Skeleton()
+    # c = Converter(s, fname)
+    # c.read()
+
+    other_s = process_bvhfile(fname)
+    for i in range(5):
+        new_frame = process_bvhkeyframe(other_s.keyframes[i], other_s.hips,
+                                        other_s.dt * i)
+        # other_s.keyframes[i] = new_frame
+
     with open("output.csv", 'w') as f:
         writer = csv.writer(f, lineterminator="\n")
-        header, frames = s.frames()
+        header, frames = other_s.get_frames(n=1)
         writer.writerow(header)
         for frame in frames:
             writer.writerow(frame)
-    for j in s._joints:
-        log.debug("{}: {}".format(j.name, j.total_offset))
+    # for j in s._joints:
+    #   log.debug("{}: {}".format(j.name, j.total_offset))
     # c.dump_frames()

@@ -23,7 +23,7 @@
 
 from math import radians, cos, sin
 from cgkit.bvh import BVHReader
-from geo import worldvert, screenvert, worldedge, screenedge
+# from geo import worldvert, screenvert, worldedge, screenedge
 from numpy import array, dot
 
 # cgkit# XAXIS = vec3(1,0,0)
@@ -103,7 +103,7 @@ class joint:
         childjoint.parent = self
 
     # Called by skeleton.create_edges()
-    def create_edges_recurse(self, edgelist, t, DEBUG=0):
+    """def create_edges_recurse(self, edgelist, t, DEBUG=0):
         if DEBUG:
             print "create_edge_recurse starting for joint ", self.name
         if self.hasparent:
@@ -122,6 +122,7 @@ class joint:
             if DEBUG:
                 print " Recursing for child ", child.name
             child.create_edges_recurse(edgelist, t, DEBUG)
+    """
 
 # End class joint
 
@@ -198,6 +199,7 @@ class skeleton:
 # MAKE_SKELSCREENEDGES: creates and returns an array of screenedge
 # that has exactly as many elements as the joint count of skeleton.
 #
+    """
     def make_skelscreenedges(self, arrow='none', circle=0, DEBUG=0):
         if DEBUG:
             print "make_sse starting"
@@ -221,6 +223,7 @@ class skeleton:
                              description='created_by_make_skelscreenedges')
             skelscreenedges.append(se1)
         return skelscreenedges
+    """
 
 
 #########################################
@@ -289,6 +292,47 @@ class skeleton:
             print("populate_skelscreenedges: copied {} edges from skeleton"
                   " to sse".format(counter))
 
+    def get_frames(self, n=None):
+        """Returns a list of frames, first item in list will be a header
+
+        Positional Arguments
+        n -- if not None, returns specified frame (with header)"""
+        def joint_dfs(root):
+            nodes = []
+            stack = [root]
+            while stack:
+                cur_node = stack[0]
+                stack = stack[1:]
+                nodes.append(cur_node)
+                for child in cur_node.children:
+                    stack.insert(0, child)
+            return nodes
+
+        joints = joint_dfs(self.hips)
+
+        print(len(joints))
+
+        frame_data = []
+        if n is None:
+            single_frame = []
+            for i in range(1, self.frames):
+                t = i * self.dt
+                for j in joints:
+                    print(j.worldpos)
+                    single_frame.append(j.worldpos[t][:3])
+            frame_data.append(single_frame)
+        else:
+            single_frame = []
+            t = n * self.dt
+            for j in joints:
+                print(j.worldpos)
+                single_frame.extend(j.worldpos[t][:3])
+            frame_data.append(single_frame)
+
+        header = ["{}.{}".format(j.name, thing) for j in joints
+                  for thing in ("X", "Y", "Z")]
+        return header, frame_data
+
 
 #######################################
 # READBVH class
@@ -296,7 +340,6 @@ class skeleton:
 # Per the BVHReader documentation, we need to subclass BVHReader
 # and set up functions onHierarchy, onMotion, and onFrame to parse
 # the BVH file.
-#
 class readbvh(BVHReader):
 
     def onHierarchy(self, root):
