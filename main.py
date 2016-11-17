@@ -4,7 +4,7 @@ import csv
 import argparse
 import os
 
-from cgkit_skeleton import process_bvhfile, process_bvhkeyframe
+from bvhplayer_skeleton import process_bvhfile, process_bvhkeyframe
 
 """
 Based on: http://www.dcs.shef.ac.uk/intranet/research/public/resmes/CS0111.pdf
