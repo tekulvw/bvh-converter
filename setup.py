@@ -16,6 +16,15 @@ setup(
     author='tekulvw',
     author_email='',
     description='Converts BVH files to CSV',
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Environment :: Console",
+        "Intended Audience :: End Users/Desktop",
+        "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python",
+        "Topic :: Utilities"
+    ],
     install_requires=get_requirements(),
     entry_points={
         'console_scripts': [
