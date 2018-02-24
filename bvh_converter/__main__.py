@@ -4,7 +4,7 @@ import csv
 import argparse
 import os
 
-from bvhplayer_skeleton import process_bvhfile, process_bvhkeyframe
+from bvh_converter.bvhplayer_skeleton import process_bvhfile, process_bvhkeyframe
 
 """
 Based on: http://www.dcs.shef.ac.uk/intranet/research/public/resmes/CS0111.pdf
@@ -15,7 +15,7 @@ Notes:
 """
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Extract joint location data from BVH file format.")
     parser.add_argument("filename", type=str)
@@ -44,3 +44,7 @@ if __name__ == "__main__":
             writer.writerow(frame)
 
     print("Output file: output.csv")
+
+
+if __name__ == "__main__":
+    main()

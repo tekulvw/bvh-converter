@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 from math import radians, cos, sin
-from bvh import BVHReader
+from bvh_converter.bvh import BVHReader
 from numpy import array, dot
 
 """
