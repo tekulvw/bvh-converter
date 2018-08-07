@@ -17,6 +17,9 @@
 # Portions created by the Initial Developer are Copyright (C) 2004
 # the Initial Developer. All Rights Reserved.
 #
+# Minor modifications made to make PEP8 compatible and switch to new-style
+# classes by Matt Graham (March 2016).
+#
 # Contributor(s):
 #
 # Alternatively, the contents of this file may be used under the terms of
@@ -37,16 +40,11 @@
 # \file bvh.py
 # Contains the BVHReader class.
 
-# Node
-
-from __future__ import print_function
-import sys
-
-if sys.version_info >= (3,):
-    file = open
+import string
 
 
-class Node:
+class Node(object):
+    """Skeleton hierarchy node."""
 
     def __init__(self, root=False):
         self.name = None
@@ -55,56 +53,51 @@ class Node:
         self.children = []
         self._is_root = root
 
-    def isRoot(self):
+    @property
+    def is_root(self):
         return self._is_root
 
-    def isEndSite(self):
+    @property
+    def is_end_site(self):
         return len(self.children) == 0
 
 
-# BVHReader
-class BVHReader:
-    """Read BioVision Hierarchical (BVH) files.
-    """
+class BvhReader(object):
+    """BioVision Hierarchical (.bvh) file reader."""
 
     def __init__(self, filename):
 
         self.filename = filename
         # A list of unprocessed tokens (strings)
-        self.tokenlist = []
+        self._token_list = []
         # The current line number
-        self.linenr = 0
+        self._line_num = 0
 
         # Root node
-        self._root = None
-        self._nodestack = []
+        self.root = None
+        self._node_stack = []
 
         # Total number of channels
-        self._numchannels = 0
+        self.num_channels = 0
 
-    def onHierarchy(self, root):
+    def on_hierarchy(self, root):
         pass
 
-    def onMotion(self, frames, dt):
+    def on_motion(self, frames, dt):
         pass
 
-    def onFrame(self, values):
+    def on_frame(self, values):
         pass
 
-    # read
     def read(self):
-        """Read the entire file.
-        """
-        self.fhandle = file(self.filename)
+        """Read the entire file."""
+        with open(self.filename, 'r') as self._file_handle:
+            self.read_hierarchy()
+            self.on_hierarchy(self.root)
+            self.read_motion()
 
-        self.readHierarchy()
-        self.onHierarchy(self._root)
-        self.readMotion()
-
-    # readMotion
-    def readMotion(self):
-        """Read the motion samples.
-        """
+    def read_motion(self):
+        """Read the motion samples."""
         # No more tokens (i.e. end of file)? Then just return
         try:
             tok = self.token()
@@ -112,166 +105,144 @@ class BVHReader:
             return
 
         if tok != "MOTION":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'MOTION' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: 'MOTION' expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
         # Read the number of frames
         tok = self.token()
         if tok != "Frames:":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'Frames:' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: 'Frames:' expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
-        frames = self.intToken()
+        frames = self.int_token()
 
         # Read the frame time
         tok = self.token()
         if tok != "Frame":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'Frame Time:' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: 'Frame Time:' "
+                              "expected, got '%s' instead"
+                              % (self._line_num, tok))
         tok = self.token()
         if tok != "Time:":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'Frame Time:' expected,"
-                 " got 'Frame %s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: 'Frame Time:' "
+                              "expected, got 'Frame %s' instead"
+                              % (self._line_num, tok))
 
-        dt = self.floatToken()
+        dt = self.float_token()
 
-        self.onMotion(frames, dt)
+        self.on_motion(frames, dt)
 
         # Read the channel values
         for i in range(frames):
-            s = self.readLine()
+            s = self.read_line()
             a = s.split()
-            if len(a) != self._numchannels:
-                raise SyntaxError(
-                    ("Syntax error in line %d: %d float values expected,"
-                     " got %d instead") % (
-                         self.linenr, self._numchannels, len(a)))
-            values = list(map(lambda x: float(x), a))
-            self.onFrame(values)
+            if len(a) != self.num_channels:
+                raise SyntaxError("Syntax error in line %d: %d float values "
+                                  "expected, got %d instead"
+                                  % (self._line_num, self.num_channels,
+                                     len(a)))
+            values = list(map(lambda x: float(x), a))  # In Python 3 map returns map-object, not a list. Can't slice.
+            self.on_frame(values)
 
-    # readHierarchy
-    def readHierarchy(self):
-        """Read the skeleton hierarchy.
-        """
+    def read_hierarchy(self):
+        """Read the skeleton hierarchy."""
         tok = self.token()
         if tok != "HIERARCHY":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'HIERARCHY' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
-
+            raise SyntaxError("Syntax error in line %d: 'HIERARCHY' expected, "
+                              "got '%s' instead" % (self._line_num, tok))
         tok = self.token()
         if tok != "ROOT":
-            raise SyntaxError(
-                ("Syntax error in line %d: 'ROOT' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: 'ROOT' expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
-        self._root = Node(root=True)
-        self._nodestack.append(self._root)
-        self.readNode()
+        self.root = Node(root=True)
+        self._node_stack.append(self.root)
+        self.read_node()
 
-    # readNode
-    def readNode(self):
-        """Read the data for a node.
-        """
+    def read_node(self):
+        """Read the data for a node."""
 
-        # Read the node name (or the word 'Site' if it was a 'End Site'
-        # node)
+        # Read the node name (or the word 'Site' if it was a 'End Site' node)
         name = self.token()
-        self._nodestack[-1].name = name
+        self._node_stack[-1].name = name
 
         tok = self.token()
         if tok != "{":
-            raise SyntaxError(
-                ("Syntax error in line %d: '{' expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: '{' expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
         while 1:
             tok = self.token()
             if tok == "OFFSET":
-                x = self.floatToken()
-                y = self.floatToken()
-                z = self.floatToken()
-                self._nodestack[-1].offset = (x, y, z)
+                x = self.float_token()
+                y = self.float_token()
+                z = self.float_token()
+                self._node_stack[-1].offset = (x, y, z)
             elif tok == "CHANNELS":
-                n = self.intToken()
+                n = self.int_token()
                 channels = []
                 for i in range(n):
                     tok = self.token()
                     if tok not in ["Xposition", "Yposition", "Zposition",
                                    "Xrotation", "Yrotation", "Zrotation"]:
-                        raise SyntaxError(
-                            ("Syntax error in line %d: Invalid channel"
-                             " name: '%s'") % (self.linenr, tok))
+                        raise SyntaxError("Syntax error in line %d: Invalid "
+                                          "channel name: '%s'"
+                                          % (self._line_num, tok))
                     channels.append(tok)
-                self._numchannels += len(channels)
-                self._nodestack[-1].channels = channels
+                self.num_channels += len(channels)
+                self._node_stack[-1].channels = channels
             elif tok == "JOINT":
                 node = Node()
-                self._nodestack[-1].children.append(node)
-                self._nodestack.append(node)
-                self.readNode()
+                self._node_stack[-1].children.append(node)
+                self._node_stack.append(node)
+                self.read_node()
             elif tok == "End":
                 node = Node()
-                self._nodestack[-1].children.append(node)
-                self._nodestack.append(node)
-                self.readNode()
+                self._node_stack[-1].children.append(node)
+                self._node_stack.append(node)
+                self.read_node()
             elif tok == "}":
-                if self._nodestack[-1].isEndSite():
-                    self._nodestack[-1].name = "End Site"
-                self._nodestack.pop()
+                if self._node_stack[-1].is_end_site:
+                    self._node_stack[-1].name = "End Site"
+                self._node_stack.pop()
                 break
             else:
-                raise SyntaxError(
-                    ("Syntax error in line %d: Unknown"
-                     " keyword '%s'") % (self.linenr, tok))
+                raise SyntaxError("Syntax error in line %d: Unknown "
+                                  "keyword '%s'" % (self._line_num, tok))
 
-    # intToken
-    def intToken(self):
-        """Return the next token which must be an int.
-        """
-
+    def int_token(self):
+        """Return the next token which must be an int. """
         tok = self.token()
         try:
             return int(tok)
         except ValueError:
-            raise SyntaxError(
-                ("Syntax error in line %d: Integer expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: Integer expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
-    # floatToken
-    def floatToken(self):
-        """Return the next token which must be a float.
-        """
-
+    def float_token(self):
+        """Return the next token which must be a float."""
         tok = self.token()
         try:
             return float(tok)
         except ValueError:
-            raise SyntaxError(
-                ("Syntax error in line %d: Float expected,"
-                 " got '%s' instead") % (self.linenr, tok))
+            raise SyntaxError("Syntax error in line %d: Float expected, "
+                              "got '%s' instead" % (self._line_num, tok))
 
-    # token
     def token(self):
         """Return the next token."""
 
         # Are there still some tokens left? then just return the next one
-        if self.tokenlist != []:
-            tok = self.tokenlist[0]
-            self.tokenlist = self.tokenlist[1:]
+        if self._token_list:
+            tok = self._token_list[0]
+            self._token_list = self._token_list[1:]
             return tok
 
         # Read a new line
-        s = self.readLine()
-        self.createTokens(s)
+        s = self.read_line()
+        self.create_tokens(s)
         return self.token()
 
-    # readLine
-    def readLine(self):
+    def read_line(self):
         """Return the next line.
 
         Empty lines are skipped. If the end of the file has been
@@ -280,20 +251,17 @@ class BVHReader:
         empty string).
         """
         # Discard any remaining tokens
-        self.tokenlist = []
-
+        self._token_list = []
         # Read the next line
         while 1:
-            s = self.fhandle.readline()
-            self.linenr += 1
+            s = self._file_handle.readline()
+            self._line_num += 1
             if s == "":
                 raise StopIteration
             return s
 
-    # createTokens
-    def createTokens(self, s):
-        """Populate the token list from the content of s.
-        """
+    def create_tokens(self, s):
+        """Populate the token list from the content of s."""
         s = s.strip()
         a = s.split()
-        self.tokenlist = a
+        self._token_list = a
