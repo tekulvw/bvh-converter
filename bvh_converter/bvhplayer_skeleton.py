@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 from math import radians, cos, sin
-from bvh_converter.bvh import BVHReader
+from bvh_converter.bvh import BvhReader
 from numpy import array, dot
 
 """
@@ -51,7 +51,7 @@ IDENTITY = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
 # edges.  It's not accurate to call these "bones" because if
 # you rotate the joint, you rotate ALL attached bones.
 
-class joint:
+class Joint:
 
     def __init__(self, name):
         self.name = name
@@ -60,25 +60,22 @@ class joint:
         # list entry is one of [XYZ]position, [XYZ]rotation
         self.hasparent = 0  # flag
         self.parent = 0  # joint.addchild() sets this
-# cgkit#    self.strans = vec3(0,0,0)  # static translation vector (x, y, z)
-        self.strans = array([0., 0., 0.])  # I think I could just use   \
-        # regular Python arrays
+        self.strans = array([0., 0., 0.])  # I think I could just use regular Python arrays.
 
         # Transformation matrices:
         self.stransmat = array([[0., 0., 0., 0.], [0., 0., 0., 0.],
                                 [0., 0., 0., 0.], [0., 0., 0., 0.]])
-
-        self.trtr = {}
-# self.trtr = []       # self.trtr[time]  A premultiplied series of
-        # translation and rotation matrices
-        self.worldpos = {}
-# self.worldpos = []  # Time-based worldspace xyz position of the
-        # joint's endpoint.  A list of vec4's
+        
+        self.rot = {}  # self.rot[t] Rotation values at the frame.
+        self.trtr = {}  # self.trtr[time]  A premultiplied series of translation and rotation matrices.
+        self.worldpos = {}  # Time-based worldspace xyz position of the joint's endpoint.  A list of vec4's
 
     def info(self):
+        """ Prints information about the joint to stdout.
+        """
         print("Joint name:", self.name)
         print(" %s is connected to " % self.name,)
-        if(len(self.children) == 0):
+        if len(self.children) == 0:
             print("nothing")
         else:
             for child in self.children:
@@ -87,12 +84,12 @@ class joint:
         for child in self.children:
             child.info()
 
-    def __repr__(self):  # Recursively build up text info
+    def __str__(self):  # Recursively build up text info
         str2 = self.name + " at strans=" + \
             str(self.strans) + " is connected to "
-# Not sure how well self.strans will work now that self.strans is
-# a numpy "array", no longer a cgkit vec3.
-        if(len(self.children) == 0):
+        # Not sure how well self.strans will work now that self.strans is
+        # a numpy "array", no longer a cgkit vec3.
+        if len(self.children) == 0:
             str2 = str2 + "nothing\n"
         else:
             for child in self.children:
@@ -100,9 +97,9 @@ class joint:
             str2 = str2 + "\n"
         str3 = ""
         for child in self.children:
-            str3 = str3 + child.__repr__()
+            str3 = str3 + child.__str__()
         str1 = str2 + str3
-        return (str1)
+        return str1
 
     def addchild(self, childjoint):
         self.children.append(childjoint)
@@ -118,28 +115,28 @@ class joint:
 # This class is actually for a skeleton plus some time-related info
 #   frames: number of frames in the animation
 #   dt: delta-t in seconds per frame (default: 30fps i.e. 1/30)
-class skeleton:
+class Skeleton:
 
-    def __init__(self, hips, keyframes, frames=0, dt=.033333333):
-        self.hips = hips
-# 9/1/08: we now transfer the large bvh.keyframes data structure to
-# the skeleton because we need to keep this dataset around.
+    def __init__(self, hips, keyframes, frames=0, dt=.033333333, ignore_root_offset=True):
+        self.root = hips
+        # 9/1/08: we now transfer the large bvh.keyframes data structure to
+        # the skeleton because we need to keep this dataset around.
         self.keyframes = keyframes
         self.frames = frames  # Number of frames (caller must set correctly)
         self.dt = dt
-# self.edges = []  # List of list of edges.  self.edges[time][edge#]
+        # self.edges = []  # List of list of edges.  self.edges[time][edge#]
         self.edges = {}  # As of 9/1/08 this now runs from 1...N not 0...N-1
 
-# Precompute hips min and max values in all 3 dimensions.
-# First determine how far into a keyframe we need to look to find the
-# XYZ hip positions
+        # Precompute hips min and max values in all 3 dimensions.
+        # First determine how far into a keyframe we need to look to find the
+        # XYZ hip positions
         offset = 0
-        for channel in self.hips.channels:
-            if(channel == "Xposition"):
+        for channel in self.root.channels:
+            if channel == "Xposition":
                 xoffset = offset
-            if(channel == "Yposition"):
+            if channel == "Yposition":
                 yoffset = offset
-            if(channel == "Zposition"):
+            if channel == "Zposition":
                 zoffset = offset
             offset += 1
         self.minx = 999999999999
@@ -148,15 +145,19 @@ class skeleton:
         self.maxx = -999999999999
         self.maxy = -999999999999
         self.maxz = -999999999999
-# We can't just look at the keyframe values, we also have to correct
-# by the static hips OFFSET value, since sometimes this can be quite
-# large.  I feel it's bad BVH file form to have a non-zero HIPS offset
-# position, but there are definitely files that do this.
-        xcorrect = self.hips.strans[0]
-        ycorrect = self.hips.strans[1]
-        zcorrect = self.hips.strans[2]
+        # We will ignore the static hips OFFSET value by default, since
+        # it will not reproduce the correct values for world positions in most cases.
+        # I feel it's bad BVH file form to have a non-zero HIPS offset
+        # position, but there are definitely files that do this (e.g. MotionBuilder BVH Export).
+        if ignore_root_offset:
+            self.root.strans[0] = 0.0
+            self.root.strans[1] = 0.0
+            self.root.strans[2] = 0.0
+            self.root.stransmat = IDENTITY
+        xcorrect = self.root.strans[0]
+        ycorrect = self.root.strans[1]
+        zcorrect = self.root.strans[2]
 
-#    self.strans = array([0.,0.,0.])  # I think I could just use   \
         for keyframe in self.keyframes:
             x = keyframe[xoffset] + xcorrect
             y = keyframe[yoffset] + ycorrect
@@ -174,28 +175,36 @@ class skeleton:
             if z > self.maxz:
                 self.maxz = z
 
-    def __repr__(self):
+    def __str__(self):
         str1 = "frames = " + str(self.frames) + ", dt = " + str(self.dt) + "\n"
-        str1 = str1 + self.hips.__repr__()
+        str1 = str1 + self.root.__str__()
         return str1
 
-    def get_frames(self, n=None):
+    @staticmethod
+    def joint_dfs(root):
+        """
+        Go through root's children and return joints.
+        :param root: Starting node.
+        :return: Children of root.
+        :rtype: list
+        """
+        nodes = []
+        stack = [root]
+        while stack:
+            cur_node = stack[0]
+            stack = stack[1:]
+            nodes.append(cur_node)
+            for child in cur_node.children:
+                stack.insert(0, child)
+        return nodes
+    
+    def get_frames_worldpos(self, n=None):
         """Returns a list of frames, first item in list will be a header
-
-        Positional Arguments
-        n -- if not None, returns specified frame (with header)"""
-        def joint_dfs(root):
-            nodes = []
-            stack = [root]
-            while stack:
-                cur_node = stack[0]
-                stack = stack[1:]
-                nodes.append(cur_node)
-                for child in cur_node.children:
-                    stack.insert(0, child)
-            return nodes
-
-        joints = joint_dfs(self.hips)
+        :param n: If not None, returns specified frame (with header).
+        :type n: int
+        :rtype: tuple
+        """
+        joints = self.joint_dfs(self.root)
 
         frame_data = []
         if n is None:
@@ -216,28 +225,122 @@ class skeleton:
                   for thing in ("X", "Y", "Z")]
         header = ["Time", ] + header
         return header, frame_data
+    
+    def get_frames_rotations(self, n=None):
+        """Returns a list of frames, first item in list will be a header
+        :param n: If not None, returns specified frame (with header).
+        :type n: int
+        :rtype: tuple
+        """
+        joints = self.joint_dfs(self.root)
 
+        frame_data = []
+        if n is None:
+            for i in range(len(self.keyframes)):
+                t = i * self.dt
+                single_frame = [t, ]
+                for j in joints:
+                    if j.rot:
+                        rot = j.rot[t]
+                    else:
+                        rot = [0.0, 0.0, 0.0]
+                    single_frame.extend(rot)
+                frame_data.append(single_frame)
+        else:
+            t = n * self.dt
+            single_frame = [t, ]
+            for j in joints:
+                if j.rot:
+                    rot = j.rot[t]
+                else:
+                    rot = [0.0, 0.0, 0.0]
+                single_frame.extend(rot)
+            frame_data.append(single_frame)
+
+        header = ["{}.{}".format(j.name, thing) for j in joints
+                  for thing in ("X", "Y", "Z")]
+        header = ["Time", ] + header
+        return header, frame_data
+
+    def get_frame(self, f):
+        """
+        Get motion values per joint for frame f.
+        :param f: Frame
+        :type f: int
+        :return: A dictionary of {joint.name: (rotation, world position)} for frame f
+        :rtype: dict
+        """
+        joints = self.joint_dfs(self.root)
+
+        frame_data = dict()
+        
+        t = f * self.dt
+        for j in joints:
+            frame_data[j.name] = j.rot[t] if t in j.rot else None, j.worldpos[t][:3]
+        return frame_data
+    
+    def get_offsets(self):
+        """
+        Get the offsets for each joint in the skeleton.
+        :return: Dictionary of {joint.name: offset}.
+        :rtype: dict
+        """
+        joints = self.joint_dfs(self.root)
+        offsets = dict()
+        for j in joints:
+            offsets[j.name] = j.strans
+        return offsets
+    
+    def as_dict(self):
+        """
+        Get the skeleton topology as dictionary.
+        :return: Dictionary of {j.name: j.parent, j.strans, j.rot, type, children}
+        :rtype: dict
+        """
+        joints = self.joint_dfs(self.root)
+        joints_dict = {}
+
+        for j in joints:
+            if not j.hasparent:
+                type = 'root'
+            else:
+                type = 'joint'
+            if j.name[-3:] == "End":
+                type = 'end'
+            
+            if j.rot:
+                rot_0 = tuple(j.rot[0])
+            else:
+                rot_0 = None
+                
+            joints_dict[j.name] = (j.parent.name if j.hasparent else None,
+                                   tuple(j.strans),
+                                   rot_0,
+                                   type,
+                                   [child.name for child in j.children])
+        return joints_dict
+        
 
 #######################################
 # READBVH class
 #
-# Per the BVHReader documentation, we need to subclass BVHReader
-# and set up functions onHierarchy, onMotion, and onFrame to parse
+# Per the BvhReader documentation, we need to subclass BvhReader
+# and set up functions on_hierarchy, on_motion, and on_frame to parse
 # the BVH file.
-class readbvh(BVHReader):
+class ReadBVH(BvhReader):
 
-    def onHierarchy(self, root):
+    def on_hierarchy(self, root):
         #    print("readbvh: onHierarchy invoked"
         self.root = root  # Save root for later use
         self.keyframes = []  # Used later in onFrame
 
-    def onMotion(self, frames, dt):
+    def on_motion(self, frames, dt):
         # print("readbvh: onMotion invoked.  frames = %s, dt = %s" %
         # (frames,dt)
         self.frames = frames
         self.dt = dt
 
-    def onFrame(self, values):
+    def on_frame(self, values):
         #   print("readbvh: onFrame invoked, values =", values
         # Hopefully this gives us a list of lists
         self.keyframes.append(values)
@@ -250,7 +353,7 @@ class readbvh(BVHReader):
 #######################################
 # PROCESS_BVHNODE function
 #
-# Recursively process a BVHReader node object and return the root joint
+# Recursively process a BvhReader node object and return the root joint
 # of a bone hierarchy.  This routine creates a new joint hierarchy.
 # It isn't a Skeleton yet since we haven't read any keyframes or
 # created a Skeleton class yet.
@@ -269,8 +372,8 @@ def process_bvhnode(node, parentname='hips'):
     name = node.name
     if (name == "End Site") or (name == "end site"):
         name = parentname + "End"
-    # print("process_bvhnode: name is ", name
-    b1 = joint(name)
+    
+    b1 = Joint(name)
     b1.channels = node.channels
     b1.strans[0] = node.offset[0]
     b1.strans[1] = node.offset[1]
@@ -279,8 +382,8 @@ def process_bvhnode(node, parentname='hips'):
     # Compute static translation matrix from vec3 b1.strans
     # cgkit#  b1.stransmat = b1.stransmat.translation(b1.strans)
     #   b1.stransmat = deepcopy(IDENTITY)
-    b1.stransmat = array([[1., 0., 0., 0.], [0., 1., 0., 0.], [
-                         0., 0., 1., 0.], [0., 0., 0., 1.]])
+    b1.stransmat = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
+                          [0., 0., 1., 0.], [0., 0., 0., 1.]])
 
     b1.stransmat[0, 3] = b1.strans[0]
     b1.stransmat[1, 3] = b1.strans[1]
@@ -325,18 +428,22 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
     # to populate this joint's channels.  The meanings of the keyvals
     # aren't given in the keyframe itself; their meaning is specified
     # by the channel names.
+    has_xrot = False
+    has_yrot = False
+    has_zrot = False
     for channel in joint.channels:
         keyval = keyframe[counter]
-        if(channel == "Xposition"):
+        if channel == "Xposition":
             dotrans = 1
             xpos = keyval
-        elif(channel == "Yposition"):
+        elif channel == "Yposition":
             dotrans = 1
             ypos = keyval
-        elif(channel == "Zposition"):
+        elif channel == "Zposition":
             dotrans = 1
             zpos = keyval
-        elif(channel == "Xrotation"):
+        elif channel == "Xrotation":
+            has_xrot = True
             xrot = keyval
             theta = radians(xrot)
             mycos = cos(theta)
@@ -349,7 +456,8 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             drotmat2[2, 2] = mycos
             drotmat = dot(drotmat, drotmat2)
 
-        elif(channel == "Yrotation"):
+        elif channel == "Yrotation":
+            has_yrot = True
             yrot = keyval
             theta = radians(yrot)
             mycos = cos(theta)
@@ -362,7 +470,8 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             drotmat2[2, 2] = mycos
             drotmat = dot(drotmat, drotmat2)
 
-        elif(channel == "Zrotation"):
+        elif channel == "Zrotation":
+            has_zrot = True
             zrot = keyval
             theta = radians(zrot)
             mycos = cos(theta)
@@ -380,7 +489,9 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
             return(0)
         counter += 1
     # End "for channel..."
-
+    if has_xrot or has_yrot or has_zrot:  # End sites don't have rotations.
+        joint.rot[t] = (xrot, yrot, zrot)
+    
     if dotrans:  # If we are the hips...
         # Build a translation matrix for this keyframe
         dtransmat = array([[1., 0., 0., 0.], [0., 1., 0., 0.],
@@ -390,14 +501,11 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         dtransmat[2, 3] = zpos
 
         if DEBUG:
-            print(
-                "  Joint %s: xpos ypos zpos is %s %s %s" % (joint.name,
-                                                            xpos, ypos, zpos))
+            print("  Joint %s: xpos ypos zpos is %s %s %s" % (joint.name, xpos, ypos, zpos))
         # End of IF dotrans
 
         if DEBUG:
-            print("  Joint %s: xrot yrot zrot is %s %s %s" %
-                  (joint.name, xrot, yrot, zrot))
+            print("  Joint %s: xrot yrot zrot is %s %s %s" % (joint.name, xrot, yrot, zrot))
 
     # At this point we should have computed:
     #  stransmat  (computed previously in process_bvhnode subroutine)
@@ -449,7 +557,7 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         print("  Joint %s: here are some matrices" % (joint.name))
         print("   stransmat:")
         print(joint.stransmat)
-        if not (joint.hasparent):  # if hips
+        if not joint.hasparent:  # if hips
             print("   dtransmat:")
             print(dtransmat)
         print("   drotmat:")
@@ -467,9 +575,9 @@ def process_bvhkeyframe(keyframe, joint, t, DEBUG=0):
         # the returned value "newkeyframe" should shrink due to the slicing
         # process
         newkeyframe = process_bvhkeyframe(newkeyframe, child, t, DEBUG=DEBUG)
-        if(newkeyframe == 0):  # If retval = 0
+        if newkeyframe == 0:  # If retval = 0
             print("Passing up fatal error in process_bvhkeyframe")
-            return(0)
+            return 0
     return newkeyframe
 
 
@@ -484,27 +592,26 @@ def process_bvhfile(filename, DEBUG=0):
     #  raise SyntaxError, "Syntax error in line %d: 'HIERARCHY' expected, \
     #    got '%s' instead"%(self.linenr, tok)
 
-    # Here's some information about the two mybvh calls:
+    # Here's some information about the two my_bvh calls:
     #
-    # mybvh.read() returns a readbvh instance:
+    # my_bvh.read() returns a readbvh instance:
     #  retval from readbvh() is  <skeleton.readbvh instance at 0x176dcb0>
     # So this isn't useful for error-checking.
     #
-    # mybvh.read() returns None on success and throws an exception on failure.
+    # my_bvh.read() returns None on success and throws an exception on failure.
 
     print("Reading BVH file...",)
-    mybvh = readbvh(filename)  # Doesn't actually read the file, just creates
+    my_bvh = ReadBVH(filename)  # Doesn't actually read the file, just creates
     # a readbvh object and sets up the file for
     # reading in the next line.
-    mybvh.read()  # Reads and parses the file.
+    my_bvh.read()  # Reads and parses the file.
 
-    hips = process_bvhnode(mybvh.root)  # Create joint hierarchy
+    hips = process_bvhnode(my_bvh.root)  # Create joint hierarchy
     print("done")
 
     print("Building skeleton...",)
-    myskeleton = skeleton(hips, keyframes=mybvh.keyframes,
-                          frames=mybvh.frames, dt=mybvh.dt)
+    myskeleton = Skeleton(hips, keyframes=my_bvh.keyframes, frames=my_bvh.frames, dt=my_bvh.dt)
     print("done")
     if DEBUG:
         print("skeleton is: ", myskeleton)
-    return(myskeleton)
+    return myskeleton
